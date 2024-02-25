@@ -1,37 +1,149 @@
-import React from "react";
-import SignUp from "./components/SignUp";
-import CompleteProfile from "./components/CompleteProfile";
-import firebase from "firebase/compat/app";
-import "firebase/compat/auth";
-import "firebase/compat/firestore";
-import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
-
-// Your Firebase project configuration
-const firebaseConfig = {
-  apiKey: "AIzaSyAsW1uwOzto1cTBn6ljohs0ectbkhq6a10",
-  authDomain: "router-b5718.firebaseapp.com",
-  projectId: "router-b5718",
-  storageBucket: "router-b5718.appspot.com",
-  messagingSenderId: "798148189493",
-  appId: "1:798148189493:web:9e1945aacc484e87723d85",
-};
-
-// Initialize Firebase
-const firebaseApp = firebase.initializeApp(firebaseConfig);
-
-export const auth = firebaseApp.auth();
-export const firestore = firebaseApp.firestore();
+import { useState, useEffect } from "react";
+import {
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  signInWithEmailAndPassword,
+  signOut,
+  sendEmailVerification,
+  sendPasswordResetEmail, // Import sendPasswordResetEmail
+} from "firebase/auth";
+import { useNavigate } from "react-router-dom";
+import "./App.css";
+import { auth } from "./firebase";
+import ExpenseForm from "./components/ExpenseForm";
 
 function App() {
+  const [registerEmail, setRegisterEmail] = useState("");
+  const [registerPassword, setRegisterPassword] = useState("");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [user, setUser] = useState(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const register = async () => {
+    try {
+      const newUser = await createUserWithEmailAndPassword(
+        auth,
+        registerEmail,
+        registerPassword
+      );
+      console.log(newUser);
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  const login = async () => {
+    try {
+      const currentUser = await signInWithEmailAndPassword(
+        auth,
+        loginEmail,
+        loginPassword
+      );
+      console.log(currentUser);
+    } catch (error) {
+      console.log(error.message);
+    }
+  };
+
+  const logout = async () => {
+    await signOut(auth);
+    navigate("/login");
+    localStorage.removeItem("idToken"); // Clear idToken from local storage
+  };
+
+  const sendVerificationEmail = async () => {
+    try {
+      await sendEmailVerification(auth.currentUser);
+      console.log("Verification email sent");
+    } catch (error) {
+      if (error.code === "auth/too-many-requests") {
+        console.log("Too many requests. Retrying in 60 seconds...");
+        setTimeout(() => {
+          sendVerificationEmail(); // Retry after 60 seconds
+        }, 60000); // 60 seconds delay
+      } else {
+        console.error("Error sending verification email:", error);
+      }
+    }
+  };
+
+  const forgotPassword = async () => {
+    try {
+      await sendPasswordResetEmail(auth, loginEmail);
+      console.log("Password reset email sent");
+      // Provide feedback to the user indicating that the password reset email has been sent
+      alert("Password reset email sent. Please check your inbox.");
+    } catch (error) {
+      console.error("Error sending password reset email:", error);
+      // Provide feedback to the user about the error
+      alert("Error sending password reset email. Please try again later.");
+    }
+  };
+
   return (
-    <Router>
-    <div>
-      <Routes>
-        <Route exact path="/" element={<SignUp />} />
-        <Route path="/complete-profile" element={<CompleteProfile />} />
-      </Routes>
+    <div className="App">
+      {user && (
+        <div>
+          <button onClick={logout}>Logout</button>
+        </div>
+      )}
+      <div>
+        <h3>Add Daily Expense</h3>
+        <ExpenseForm /> {/* Include ExpenseForm component here */}
+      </div>
+      <div>
+        <h3> Register User </h3>
+        <input
+          placeholder="Email..."
+          onChange={(event) => {
+            setRegisterEmail(event.target.value);
+          }}
+        />
+        <input
+          placeholder="Password..."
+          onChange={(event) => {
+            setRegisterPassword(event.target.value);
+          }}
+        />
+
+        <button onClick={register}> Create User </button>
+      </div>
+      <div>
+        <h3> Login </h3>
+        <input
+          placeholder="Email..."
+          onChange={(event) => {
+            setLoginEmail(event.target.value);
+          }}
+        />
+        <input
+          placeholder="Password..."
+          onChange={(event) => {
+            setLoginPassword(event.target.value);
+          }}
+        />
+
+        <button onClick={login}> Login </button>
+      </div>
+      <button onClick={forgotPassword}>Forgot Password?</button>{" "}
+      {/* Forgot password button */}
+      {user && (
+        <div>
+          <h4> User Logged In: {user.email}</h4>
+          {!user.emailVerified && (
+            <button onClick={sendVerificationEmail}> Verify Email ID </button>
+          )}
+        </div>
+      )}
     </div>
-  </Router>
   );
 }
 
