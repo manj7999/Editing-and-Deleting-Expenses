@@ -9,8 +9,10 @@ import {
 } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import "./App.css";
-import { auth } from "./firebase";
+import { auth, db } from "./firebase";
 import ExpenseForm from "./components/ExpenseForm";
+import { ref, getDatabase, onValue } from "firebase/database";
+
 
 function App() {
   const [registerEmail, setRegisterEmail] = useState("");
@@ -18,15 +20,36 @@ function App() {
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [user, setUser] = useState(null);
+  const [expenses, setExpenses] = useState([]);
   const navigate = useNavigate();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+
+      if (currentUser) {
+        // If user is authenticated, fetch expenses from the database
+        fetchExpenses(currentUser.uid);
+      }
     });
     return () => unsubscribe();
   }, []);
 
+  // Function to fetch expenses from the database
+  const fetchExpenses = (userId) => {
+    const expensesRef = ref(getDatabase(), `expenses/${userId}`); // app ki zarurat nahi
+    onValue(expensesRef, (snapshot) => {
+      const expensesData = snapshot.val();
+      if (expensesData) {
+        const expensesArray = Object.keys(expensesData).map((key) => ({
+          id: key,
+          ...expensesData[key],
+        }));
+        setExpenses(expensesArray);
+      }
+    });
+  };
+  
   const register = async () => {
     try {
       const newUser = await createUserWithEmailAndPassword(
